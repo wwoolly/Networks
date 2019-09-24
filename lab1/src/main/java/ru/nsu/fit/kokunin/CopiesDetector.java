@@ -2,14 +2,14 @@ package ru.nsu.fit.kokunin;
 
 import java.io.IOException;
 import java.net.*;
-import java.util.Hashtable;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 
 public class CopiesDetector {
     
-    private static final int PORT = 5555,
+    private static final int PORT = /*5555*/12345,
             DELAY = 0, TIMEOUT = 5000, BUF_SIZE = 0;
+    
+//    private static final long
     
     private static final byte[] buffer = new byte[BUF_SIZE];
     
@@ -26,55 +26,44 @@ public class CopiesDetector {
     
             DatagramPacket recvPack = new DatagramPacket(buffer, BUF_SIZE);
     
-            Hashtable<InetAddress, Boolean> activeCopies = new Hashtable<>();
+            Hashtable<InetAddress, Date> activeCopies = new Hashtable<>();
 //            activeCopies.put(multicastAddress, true);
             setTimer(socket, multicastAddress);
             //multicast adress -- один ip из опр-го диапозона -- передаётся в аргс[0]
-    
-    
             while (true) {
-                //send?
-                activeCopies.forEach((address, flag)->{ activeCopies.put(address, false); }); // activeCopies.put(address, false);
+                boolean isActiveCopiesChanged = false;
                 try {
-                    while (true) {
-                        socket.receive(recvPack);
-                        InetAddress recvAddress = recvPack.getAddress();
-                        if (!activeCopies.containsKey(recvAddress)) {
-                            activeCopies.put(recvAddress, true);
-                            System.out.println("New copy join with address: " + recvAddress.getHostAddress());
-                            printActiveCopies(activeCopies);
-                        } else {
-                            activeCopies.put(recvAddress, true);
-                        }
-                        //parse <...>
-                        //если принятый адрес -- новый, то добавить в мапу, печатать список активных пождключений
-                        //иначе -- ничего
+                    socket.receive(recvPack);
+                    InetAddress recvAddress = recvPack.getAddress();
+                    if (activeCopies.put(recvAddress, new Date()) == null) {
+                        System.out.println("\nNew copy join with address: " + recvAddress.getHostAddress());
+                        isActiveCopiesChanged = true;
                     }
                 } catch (SocketTimeoutException exc) {
-                    //
+                    break;
                 }
-    
-                //чекаем ливнул ли кто...
-//                boolean activeCopiesChanged = false;
-                for (InetAddress address : activeCopies.keySet()) {
-                    if (!activeCopies.get(address)) {
-                        activeCopies.remove(address);
-                        System.out.println("Copy disconnected with address:" + address.getHostAddress());
-//                        activeCopiesChanged = true;
+                
+                Iterator<Map.Entry<InetAddress, Date>> iterator = activeCopies.entrySet().iterator();
+                while (iterator.hasNext()) {
+                    Map.Entry<InetAddress, Date> element = iterator.next();
+                    if (System.currentTimeMillis() - element.getValue().getTime() > TIMEOUT) {
+                        System.out.println("\nCopy disconnected with address:" + element.getKey().getHostAddress());
+                        iterator.remove();
+                        isActiveCopiesChanged = true;
                     }
                 }
                 
-//                if (activeCopiesChanged) {
+                if (isActiveCopiesChanged) {
                     printActiveCopies(activeCopies);
-//                }
-        
+                }
+                
             }
         } catch (IOException exc) {
             exc.printStackTrace();
         }
     }
     
-    private static void printActiveCopies(Hashtable<InetAddress, Boolean> activeCopies) {
+    private static void printActiveCopies(Hashtable<InetAddress, Date> activeCopies) {
         System.out.println("\n" + Integer.toString(activeCopies.size()) + " copies were detected:");
         for (InetAddress address : activeCopies.keySet()) {
             System.out.println("Copy with address: " + address.getHostAddress());
