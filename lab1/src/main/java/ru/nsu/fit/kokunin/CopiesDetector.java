@@ -3,51 +3,49 @@ package ru.nsu.fit.kokunin;
 import java.io.IOException;
 import java.net.*;
 import java.util.*;
+import java.util.Map.Entry;
+
 
 public class CopiesDetector {
     
-    private static final int PORT = /*5555*/12345,
+    private static final int PORT = 8888,
             DELAY = 0, TIMEOUT = 5000, BUF_SIZE = 0;
     
-//    private static final long
     
     private static final byte[] buffer = new byte[BUF_SIZE];
     
     private static Timer sendTimer = new Timer(true);
     
     static void detectCopies(InetAddress multicastAddress) {
-        try (MulticastSocket /* derived of Datagram socket. Required for receiving from multicast */
-                     socket = new MulticastSocket(new InetSocketAddress(PORT))) {
-            //есть всякие конструкторы, важно забиндить порт
-            socket.joinGroup(multicastAddress);
-            socket.setSoTimeout(TIMEOUT);//если не будет ничего принято после 5с -- SocketTimeoutException
-            //broadcast -- пересылка сообщения по всей доступной сети
-            //multicast -- пересылка сообщения по какой-либо группе адресов
+        try (MulticastSocket recvSocket = new MulticastSocket(new InetSocketAddress(PORT));
+             DatagramSocket sendSocket = new DatagramSocket()) {
+            
+            recvSocket.joinGroup(multicastAddress);
+            recvSocket.setSoTimeout(TIMEOUT);
     
             DatagramPacket recvPack = new DatagramPacket(buffer, BUF_SIZE);
     
-            Hashtable<InetAddress, Date> activeCopies = new Hashtable<>();
-//            activeCopies.put(multicastAddress, true);
-            setTimer(socket, multicastAddress);
-            //multicast adress -- один ip из опр-го диапозона -- передаётся в аргс[0]
+            Hashtable<SocketAddress, Long> activeCopies = new Hashtable<>();
+            setTimer(sendSocket, multicastAddress);
             while (true) {
                 boolean isActiveCopiesChanged = false;
                 try {
-                    socket.receive(recvPack);
-                    InetAddress recvAddress = recvPack.getAddress();
-                    if (activeCopies.put(recvAddress, new Date()) == null) {
-                        System.out.println("\nNew copy join with address: " + recvAddress.getHostAddress());
+                    recvSocket.receive(recvPack);
+                    SocketAddress recvAddress = recvPack.getSocketAddress();
+                    if (activeCopies.put(recvAddress, System.currentTimeMillis()) == null) {
+                        System.out.println("\nNew copy join with address: " + recvAddress);
+                        
                         isActiveCopiesChanged = true;
                     }
                 } catch (SocketTimeoutException exc) {
                     break;
                 }
                 
-                Iterator<Map.Entry<InetAddress, Date>> iterator = activeCopies.entrySet().iterator();
+                Iterator<Entry<SocketAddress, Long>> iterator = activeCopies.entrySet().iterator();
                 while (iterator.hasNext()) {
-                    Map.Entry<InetAddress, Date> element = iterator.next();
-                    if (System.currentTimeMillis() - element.getValue().getTime() > TIMEOUT) {
-                        System.out.println("\nCopy disconnected with address:" + element.getKey().getHostAddress());
+                    Entry<SocketAddress, Long> element = iterator.next();
+                    if (System.currentTimeMillis() - element.getValue() > TIMEOUT) {
+                        System.out.println("\nCopy disconnected with address:" + element.getKey());
                         iterator.remove();
                         isActiveCopiesChanged = true;
                     }
@@ -63,14 +61,14 @@ public class CopiesDetector {
         }
     }
     
-    private static void printActiveCopies(Hashtable<InetAddress, Date> activeCopies) {
+    private static void printActiveCopies(Hashtable<SocketAddress, Long> activeCopies) {
         System.out.println("\n" + Integer.toString(activeCopies.size()) + " copies were detected:");
-        for (InetAddress address : activeCopies.keySet()) {
-            System.out.println("Copy with address: " + address.getHostAddress());
+        for (SocketAddress address : activeCopies.keySet()) {
+            System.out.println("Copy with address: " + address);
         }
     }
     
-    private static void setTimer(MulticastSocket socket, InetAddress multicastAddress) {
+    private static void setTimer(DatagramSocket socket, InetAddress multicastAddress) {
         sendTimer.schedule(new TimerTask() {
             @Override
             public void run() {
