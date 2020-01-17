@@ -7,8 +7,8 @@ import java.nio.charset.StandardCharsets;
 public class SocksParser {
     private static final byte WRONG_ADDRESS_TYPE = 0x08;
     private static final byte WRONG_COMMAND = 0x07;
-    private static final int IPv4 = 0x04;
-    private static final int DOMAIN_NAME = 0x05;
+    private static final int IPv4 = 0x01;
+    private static final int DOMAIN_NAME = 0x03;
     private static final int CONNECT_COMMAND = 0x01;
 
     public static SocksConnectRequest parseConnect(ByteBuffer byteBuffer){

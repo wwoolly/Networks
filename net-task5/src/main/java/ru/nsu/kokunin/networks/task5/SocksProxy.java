@@ -1,14 +1,16 @@
 package ru.nsu.kokunin.networks.task5;
 
+import ru.nsu.kokunin.networks.task5.dns.DnsService;
+import ru.nsu.kokunin.networks.task5.handlers.AcceptHandler;
 import ru.nsu.kokunin.networks.task5.utils.ArgsResolver;
 import ru.nsu.kokunin.networks.task5.utils.Connection;
+import ru.nsu.kokunin.networks.task5.handlers.Handler;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.*;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.logging.Handler;
 
 public class SocksProxy {
     private final static int PORT_INDEX = 0;
@@ -46,9 +48,13 @@ public class SocksProxy {
             DatagramChannel datagramChannel = DatagramChannel.open();
             datagramChannel.configureBlocking(false);
 
+            DnsService dnsService = DnsService.getInstance();
+            dnsService.setChannel(datagramChannel);
+            dnsService.registerSelector(selector);
+
             socketChannel.configureBlocking(false);
             socketChannel.bind(new InetSocketAddress(port));
-            socketChannel.register(selector, SelectionKey.OP_ACCEPT, new AcceptHelper());
+            socketChannel.register(selector, SelectionKey.OP_ACCEPT, new AcceptHandler(socketChannel));
 
             select(selector);
         } catch (IOException exc) {
